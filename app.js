@@ -13,6 +13,7 @@ const fresh=()=>({
   catcher:'', catcherTeam:'', catcherNumber:'', catcherProfileId:null,
   pt:[], ct:[],
   batteryProfiles:[],
+  currentOpponent:'',
   green:.20, yellow:.05
 });
 
@@ -43,6 +44,11 @@ function normalizeState(raw){
     name:String(p.name||''),
     times:Array.isArray(p.times)?p.times.slice(0,3):[]
   })).filter(p=>p.name):[];
+  // Add game-level opponent context without replacing any previously saved
+  // pitcher/catcher records or timing data.
+  s.currentOpponent=String(
+    s.currentOpponent || s.pitcherTeam || s.catcherTeam || ''
+  );
   s.green=Number.isFinite(+s.green)?+s.green:.20;
   s.yellow=Number.isFinite(+s.yellow)?+s.yellow:.05;
   return s;
@@ -77,10 +83,33 @@ function batteryDisplay(kind){
   const name=batteryName(kind),num=batteryNumber(kind);
   return [num?('#'+num):'',name].filter(Boolean).join(' ');
 }
+function savedTeams(){
+  const raw=[
+    state.currentOpponent,
+    state.pitcherTeam,
+    state.catcherTeam,
+    ...state.batteryProfiles.map(p=>p.team)
+  ].map(x=>String(x||'').trim()).filter(Boolean);
+  const seen=new Set();
+  return raw.filter(team=>{
+    const key=team.toLowerCase();
+    if(seen.has(key))return false;
+    seen.add(key);
+    return true;
+  }).sort((a,b)=>a.localeCompare(b));
+}
+function teamDatalist(){
+  return `<datalist id='teamOptions'>${savedTeams().map(t=>`<option value='${h(t)}'></option>`).join('')}</datalist>`;
+}
 function profilesFor(kind){
+  const current=(state.currentOpponent||'').trim().toLowerCase();
   return state.batteryProfiles
     .filter(p=>p.role===kind)
-    .sort((a,b)=>(a.team||'').localeCompare(b.team||'')||(a.name||'').localeCompare(b.name||''));
+    .sort((a,b)=>{
+      const ap=(a.team||'').trim().toLowerCase()===current?0:1;
+      const bp=(b.team||'').trim().toLowerCase()===current?0:1;
+      return ap-bp||(a.team||'').localeCompare(b.team||'')||(a.name||'').localeCompare(b.name||'');
+    });
 }
 function currentProfile(kind){
   const id=batteryProfileId(kind);
@@ -95,11 +124,12 @@ function loadBatteryProfile(kind,id){
   state[pre+'Number']=p.number;
   state[pre+'ProfileId']=p.id;
   state[kind==='pitcher'?'pt':'ct']=[...(p.times||[])].slice(0,3);
+  state.currentOpponent=p.team||state.currentOpponent||'';
   save();
 }
 function saveBatteryProfile(kind){
   const pre=batteryRolePrefix(kind);
-  const team=(state[pre+'Team']||'').trim();
+  const team=(state[pre+'Team']||state.currentOpponent||'').trim();
   const name=(state[pre]||'').trim();
   const number=(state[pre+'Number']||'').trim();
   if(!team||!name){
@@ -123,6 +153,8 @@ function saveBatteryProfile(kind){
     state.batteryProfiles.push(p);
   }
   state[pre+'ProfileId']=p.id;
+  state[pre+'Team']=team;
+  state.currentOpponent=team;
   save();
   return true;
 }
@@ -135,7 +167,7 @@ function syncCurrentBatteryProfile(kind){
 function clearCurrentBattery(kind){
   const pre=batteryRolePrefix(kind);
   state[pre]='';
-  state[pre+'Team']='';
+  state[pre+'Team']=state.currentOpponent||'';
   state[pre+'Number']='';
   state[pre+'ProfileId']=null;
   state[kind==='pitcher'?'pt':'ct']=[];
@@ -154,9 +186,16 @@ function render(){
 
 function game(){
   const p=avg(state.pt),c=avg(state.ct),d=p!=null&&c!=null?p+c:null;
-  q('#content').innerHTML=`<div class='card'><div class='row'><div class='grow'><div class='title'>Game Day</div><div class='muted'>Current opponent battery</div></div><button id='newGame'>New Game</button></div><div class='battery'><div class='card'><div class='muted'>PITCHER</div><div class='metric'>${f(p)}</div><div>${h(batteryDisplay('pitcher')||'Not set')}</div><div class='muted'>${h(batteryTeam('pitcher'))}</div><button id='editP'>Time / Change</button></div><div class='card'><div class='muted'>CATCHER</div><div class='metric'>${f(c)}</div><div>${h(batteryDisplay('catcher')||'Not set')}</div><div class='muted'>${h(batteryTeam('catcher'))}</div><button id='editC'>Time / Change</button></div></div><div class='card center'><div class='muted'>DEFENSE TO SECOND</div><div class='metric'>${f(d)}</div></div></div><div class='card'><div class='title'>Steal Board</div><div class='muted'>🟢 GO ≥ +${f(state.green)} · 🟡 READ ≥ +${f(state.yellow)} · 🔴 HOLD</div><div id='board'></div></div><div class='footer'>Timing edge = pitcher-to-home + catcher pop − runner baseline. It is a decision aid; game context, jump, pitch and throw still matter.</div>`;
+  q('#content').innerHTML=`<div class='card'><div class='row'><div class='grow'><div class='title'>Game Day</div><div class='muted'>Current opponent battery</div></div><button id='newGame'>New Game</button></div><label class='sectionlabel'>Opponent Team</label><input id='gameOpponent' list='teamOptions' placeholder='Type or choose a saved team' value='${h(state.currentOpponent)}'>${teamDatalist()}<div class='battery'><div class='card'><div class='muted'>PITCHER</div><div class='metric'>${f(p)}</div><div>${h(batteryDisplay('pitcher')||'Not set')}</div><div class='muted'>${h(batteryTeam('pitcher'))}</div><button id='editP'>Time / Change</button></div><div class='card'><div class='muted'>CATCHER</div><div class='metric'>${f(c)}</div><div>${h(batteryDisplay('catcher')||'Not set')}</div><div class='muted'>${h(batteryTeam('catcher'))}</div><button id='editC'>Time / Change</button></div></div><div class='card center'><div class='muted'>DEFENSE TO SECOND</div><div class='metric'>${f(d)}</div></div></div><div class='card'><div class='title'>Steal Board</div><div class='muted'>🟢 GO ≥ +${f(state.green)} · 🟡 READ ≥ +${f(state.yellow)} · 🔴 HOLD</div><div id='board'></div></div><div class='footer'>Timing edge = pitcher-to-home + catcher pop − runner baseline. It is a decision aid; game context, jump, pitch and throw still matter.</div>`;
+  q('#gameOpponent').onchange=e=>{
+    state.currentOpponent=e.target.value.trim();
+    if(!state.pitcher&&!state.pt.length)state.pitcherTeam=state.currentOpponent;
+    if(!state.catcher&&!state.ct.length)state.catcherTeam=state.currentOpponent;
+    save();game();
+  };
   q('#newGame').onclick=()=>{
     if(confirm('Start a new game? Player baselines and saved opponent library stay saved.')){
+      state.currentOpponent='';
       clearCurrentBattery('pitcher');
       clearCurrentBattery('catcher');
       save();game();
@@ -209,7 +248,8 @@ function batteryEditor(kind,label){
     </select>
     <div class='muted' style='margin-top:8px'>Or enter a new ${label.toLowerCase()} and save it for future games.</div>
     <label class='sectionlabel'>Team</label>
-    <input id='oppTeam' placeholder='Team name' value='${h(state[pre+'Team'])}'>
+    <input id='oppTeam' list='teamOptions' placeholder='Type or choose a saved team' value='${h(state[pre+'Team']||state.currentOpponent)}'>
+    ${teamDatalist()}
     <div class='grid2'>
       <div><label class='sectionlabel'>Number</label><input id='oppNum' inputmode='numeric' placeholder='#' value='${h(state[pre+'Number'])}'></div>
       <div><label class='sectionlabel'>Name</label><input id='oppName' placeholder='${label} name' value='${h(state[pre])}'></div>
@@ -234,7 +274,11 @@ function measure(){
       loadBatteryProfile(kind,e.target.value);
       render();
     };
-    q('#oppTeam').oninput=e=>{state[pre+'Team']=e.target.value;save()};
+    q('#oppTeam').oninput=e=>{
+      state[pre+'Team']=e.target.value;
+      state.currentOpponent=e.target.value;
+      save();
+    };
     q('#oppNum').oninput=e=>{state[pre+'Number']=e.target.value;save()};
     q('#oppName').oninput=e=>{state[pre]=e.target.value;save()};
     q('#saveBattery').onclick=()=>{

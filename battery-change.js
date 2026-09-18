@@ -16,11 +16,13 @@ measure = function () {
   const manual = q('#manual');
   const addManual = q('#addManual');
 
-  // Existing battery data is view-only until the coach explicitly changes that player.
+  // Lock the opponent identity, but keep timing controls active. "Time / Change"
+  // must allow additional readings for the current pitcher/catcher; only the
+  // Change button should clear the current player's timing set.
   if (input) input.disabled = true;
-  if (timerBtn) timerBtn.disabled = true;
-  if (manual) manual.disabled = true;
-  if (addManual) addManual.disabled = true;
+  if (timerBtn) timerBtn.disabled = false;
+  if (manual) manual.disabled = false;
+  if (addManual) addManual.disabled = false;
 
   const card = q('#content .card');
   const change = document.createElement('button');
@@ -32,7 +34,7 @@ measure = function () {
   const explanation = document.createElement('div');
   explanation.className = 'muted center';
   explanation.style.marginBottom = '10px';
-  explanation.textContent = `Current ${label.toLowerCase()} timing is preserved until you press Change ${label}.`;
+  explanation.textContent = `Time the current ${label.toLowerCase()} below, or press Change ${label} to clear this player's readings and switch opponents.`;
 
   const title = card.querySelector('.title');
   title.insertAdjacentElement('afterend', explanation);

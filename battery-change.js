@@ -16,12 +16,10 @@ measure = function () {
 
   const label = isPitcher ? 'Pitcher' : 'Catcher';
 
-  // Lock identity while this battery member is active, but keep timing controls
-  // available so the coach can add/re-time samples without clearing the player.
-  ['#savedBattery','#oppTeam','#oppNum','#oppName','#saveBattery'].forEach(sel=>{
-    const el=q(sel);
-    if(el)el.disabled=true;
-  });
+  // Keep the identity fields and Save/Update button editable. Coaches need
+  // to be able to enter or correct team / number / name even when a timing set
+  // already exists. "Change" remains the explicit way to clear the current
+  // battery member and start a different one.
   const timerBtn=q('#timerBtn');
   const manual=q('#manual');
   const addManual=q('#addManual');

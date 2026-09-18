@@ -11,7 +11,9 @@ measure = function () {
   const number = isPitcher ? state.pitcherNumber : state.catcherNumber;
   const profileId = isPitcher ? state.pitcherProfileId : state.catcherProfileId;
   const times = isPitcher ? state.pt : state.ct;
-  const hasCurrent = !!name || !!team || !!number || !!profileId || times.length > 0;
+  // A retained game opponent alone does not mean a pitcher/catcher has
+  // actually been selected yet.
+  const hasCurrent = !!name || !!number || !!profileId || times.length > 0;
   if (!hasCurrent) return;
 
   const label = isPitcher ? 'Pitcher' : 'Catcher';
